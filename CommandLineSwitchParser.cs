@@ -10,6 +10,20 @@ namespace Utilities
 {
     class CommandLineSwitchParser
     {
+        string _switchPrefix = "/";
+
+        public string SwitchPrefix
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                    throw new InvalidOperationException("SwitchPrefix cannot be null or empty.");
+
+                _switchPrefix = value;
+            }
+            get { return _switchPrefix; }
+        }
+
         public CommandLineSwitchParser()
         {
         }
@@ -81,11 +95,39 @@ namespace Utilities
             IList objs = ConvertStringList(values, elementType);
             if (field.FieldType.IsArray)
             {
-                field.SetValue(output, objs);
+                string[] arr = new string[objs.Count];
+                objs.CopyTo(arr, 0);
+
+                // If the array already exists, extend it
+                string[] existing = field.GetValue(output) as string[];
+                if (existing != null && existing.Length > 0)
+                {
+                    string[] newArr = new string[arr.Length + existing.Length];
+                    existing.CopyTo(newArr, 0);
+                    arr.CopyTo(newArr, existing.Length);
+                    field.SetValue(output, newArr);
+                }
+                else
+                {
+                    field.SetValue(output, arr);
+                }
             }
             else
             {
-                field.SetValue(output, Activator.CreateInstance(field.FieldType, objs));
+                IList existing = field.GetValue(output) as IList;
+                if (existing != null && existing.Count > 0)
+                {
+                    IList newList = (IList)Array.CreateInstance(elementType, existing.Count + objs.Count);
+                    for (int i = 0; i < existing.Count; ++i)
+                        newList[i] = existing[i];
+                    for (int i = 0; i < objs.Count; ++i)
+                        newList[i + existing.Count] = objs[i];
+                    field.SetValue(output, Activator.CreateInstance(field.FieldType, newList));
+                }
+                else
+                {
+                    field.SetValue(output, Activator.CreateInstance(field.FieldType, objs));
+                }
             }
         }
 
@@ -102,7 +144,7 @@ namespace Utilities
 
             for (int i = 0; i < args.Length; ++i)
             {
-                if (!args[i].StartsWith("/"))
+                if (!args[i].StartsWith(SwitchPrefix))
                 {
                     throw new Exception("Invalid switch: " + args[i]);
                 }
@@ -124,13 +166,13 @@ namespace Utilities
                 }
                 else if (i < args.Length - 1)
                 {
-                    if (args[i + 1].StartsWith("/"))
+                    if (args[i + 1].StartsWith(SwitchPrefix))
                         throw new Exception("Expected: value for " + arg);
 
                     if (field.FieldType.IsArray || HasEnumerableConstructor(field.FieldType))
                     {
                         List<string> values = new List<string>();
-                        while (i < args.Length && !args[i+1].StartsWith("/"))
+                        while (i < args.Length - 1 && !args[i+1].StartsWith(SwitchPrefix))
                         {
                             values.Add(args[++i]);
                         }

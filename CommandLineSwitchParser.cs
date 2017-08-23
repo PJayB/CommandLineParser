@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Reflection;
 using System.Collections;
 
-namespace FissionBuildAndDeploy
+namespace Utilities
 {
     class CommandLineSwitchParser
     {
